@@ -1,0 +1,1414 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顾客 · CUSTOMER</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Lora:ital,wght@0,400;0,600;1,400&family=Share+Tech+Mono&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080808;
+    --bg2: #101010;
+    --bg3: #181818;
+    --border: #242424;
+    --border2: #323232;
+    --text: #cec8be;
+    --text2: #807870;
+    --text3: #484440;
+    --accent: #c0a878;
+    --accent2: #806848;
+    --danger: #7a3828;
+    --danger2: #c05840;
+    --green: #385840;
+    --green2: #58a868;
+    --yellow2: #c0a040;
+    --mono: 'Share Tech Mono', 'Courier New', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Lora', 'Georgia', serif;
+    font-size: 16px;
+    line-height: 1.85;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #game-container {
+    width: 100%;
+    max-width: 740px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+
+  /* ── STATIC NOISE OVERLAY ── */
+  #game-container::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.4;
+  }
+
+  /* ── STATUS BAR ── */
+  #status-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,8,8,0.97);
+    border-bottom: 1px solid var(--border);
+    padding: 9px 18px;
+    display: flex;
+    gap: 0;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 12px;
+    backdrop-filter: blur(4px);
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text3);
+    padding: 2px 12px 2px 0;
+    border-right: 1px solid var(--border);
+    margin-right: 12px;
+  }
+  .stat:last-child { border-right: none; }
+  .stat .lbl { color: var(--text3); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .stat .val { color: var(--accent); }
+  .stat .val.low { color: var(--danger2); animation: pulse-red 1.5s infinite; }
+  .stat .val.warn { color: var(--yellow2); }
+  .stat .val.good { color: var(--green2); }
+
+  @keyframes pulse-red {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* suspicion bar */
+  #susp-bar-wrap {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  #susp-bar-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+  #susp-bar-track { flex: 1; height: 3px; background: var(--bg3); position: relative; overflow: hidden; }
+  #susp-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--green2);
+    transition: width 0.6s ease, background 0.6s ease;
+  }
+  #susp-val { font-family: var(--mono); font-size: 11px; color: var(--text3); min-width: 32px; text-align: right; }
+
+  /* ── SCENE IMAGE ── */
+  #scene-img-wrap {
+    width: 100%;
+    height: 220px;
+    overflow: hidden;
+    position: relative;
+    background: #050505;
+  }
+  #scene-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    filter: saturate(0.3) brightness(0.55) contrast(1.2);
+    transition: opacity 0.9s ease;
+  }
+  #scene-img.loaded { opacity: 1; }
+  #scene-img-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(8,8,8,0.1) 0%, rgba(8,8,8,0.0) 40%, rgba(8,8,8,0.85) 100%);
+    pointer-events: none;
+  }
+  #scene-img-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+    pointer-events: none;
+  }
+  #scene-location-label {
+    position: absolute;
+    bottom: 14px;
+    left: 20px;
+    font-family: 'Special Elite', serif;
+    font-size: 18px;
+    color: rgba(200,190,170,0.9);
+    letter-spacing: 2px;
+    text-shadow: 0 1px 12px rgba(0,0,0,1);
+  }
+  #scene-time-label {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(192,168,120,0.7);
+    letter-spacing: 1px;
+    background: rgba(0,0,0,0.5);
+    padding: 2px 7px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  /* ── TEXT AREA ── */
+  #text-area {
+    flex: 1;
+    padding: 26px 26px 10px;
+    min-height: 260px;
+  }
+
+  .scene-header {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 18px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .narrative {
+    color: var(--text);
+    margin-bottom: 16px;
+    font-size: 15px;
+    line-height: 1.95;
+  }
+  .narrative.italic { color: var(--text2); font-style: italic; }
+  .narrative.notice {
+    color: var(--accent);
+    border-left: 2px solid var(--accent2);
+    padding-left: 14px;
+    font-style: italic;
+    font-size: 14px;
+  }
+  .narrative.warning {
+    color: var(--danger2);
+    border-left: 2px solid var(--danger);
+    padding-left: 14px;
+  }
+  .narrative.thought {
+    color: var(--yellow2);
+    font-style: italic;
+    font-size: 14px;
+    opacity: 0.85;
+  }
+  .narrative.green {
+    color: var(--green2);
+    border-left: 2px solid var(--green);
+    padding-left: 14px;
+    font-size: 14px;
+  }
+  .narrative.system {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text3);
+    background: var(--bg3);
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    margin: 10px 0;
+    line-height: 1.7;
+  }
+  /* Dialogue box for NPC lines */
+  .dialogue {
+    background: #0d0d0d;
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--accent2);
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .dialogue.mimic {
+    border-left-color: var(--danger);
+    background: #0a0505;
+  }
+  .dialogue .spk {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .dialogue.mimic .spk { color: var(--danger2); }
+  .dialogue .line { color: var(--text2); }
+
+  /* ── CHOICES ── */
+  #choices-area {
+    padding: 6px 26px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .choice-btn {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 11px 18px;
+    text-align: left;
+    cursor: pointer;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 14px;
+    line-height: 1.6;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    position: relative;
+  }
+  .choice-btn::before { content: '›'; color: var(--accent2); margin-right: 9px; font-size: 16px; vertical-align: middle; }
+  .choice-btn:hover { background: var(--bg3); border-color: var(--accent2); color: var(--accent); }
+  .choice-btn:disabled { opacity: 0.18; cursor: not-allowed; background: transparent; }
+  .choice-btn.dangerous { border-color: var(--danger); color: var(--danger2); }
+  .choice-btn.dangerous:hover { background: rgba(122,56,40,0.1); }
+  .choice-btn.risky-tag::after { content: ' ⚠'; font-size: 11px; opacity: 0.7; }
+
+  /* ── INTRO ── */
+  #intro-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 40px 20px 60px;
+    overflow-y: auto;
+  }
+  #intro-screen h1 {
+    font-size: 11px;
+    font-weight: normal;
+    letter-spacing: 8px;
+    color: var(--text3);
+    margin-top: 30px;
+    margin-bottom: 32px;
+    font-family: var(--mono);
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .letter-container {
+    max-width: 580px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    padding: 30px 34px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+  .letter-text {
+    color: var(--text);
+    font-size: 14.5px;
+    line-height: 1.95;
+    margin-bottom: 16px;
+    text-indent: 2em;
+  }
+  .letter-text.no-indent { text-indent: 0; }
+  #start-btn {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    background: transparent;
+    border: 1px solid var(--accent2);
+    color: var(--accent);
+    padding: 13px 52px;
+    font-size: 12px;
+    letter-spacing: 5px;
+    cursor: pointer;
+    font-family: var(--mono);
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  #start-btn:hover { background: rgba(192,168,120,0.07); border-color: var(--accent); }
+
+  /* ── GAME OVER ── */
+  #gameover-screen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.96);
+    z-index: 998;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+  }
+  #gameover-screen h2 {
+    font-size: 18px;
+    font-weight: normal;
+    letter-spacing: 6px;
+    color: var(--danger2);
+    margin-bottom: 20px;
+    font-family: var(--mono);
+  }
+  #gameover-screen.win h2 { color: var(--green2); }
+  #gameover-screen p { max-width: 480px; color: var(--text2); font-size: 14px; line-height: 2; margin-bottom: 10px; }
+  #gameover-screen .go-stats { font-family: var(--mono); font-size: 12px; color: var(--text3); line-height: 2; margin-top: 10px; }
+  #restart-btn {
+    margin-top: 30px;
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    padding: 11px 40px;
+    font-size: 12px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    font-family: var(--mono);
+    transition: all 0.2s;
+  }
+  #restart-btn:hover { border-color: var(--accent2); color: var(--accent); }
+
+  /* ── RULES PANEL ── */
+  #rules-toggle {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--bg2); border: 1px solid var(--border2);
+    color: var(--text2); width: 38px; height: 38px;
+    font-size: 15px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; font-family: var(--mono); transition: all 0.15s;
+  }
+  #rules-toggle:hover { border-color: var(--accent2); color: var(--accent); }
+  #rules-panel {
+    position: fixed; bottom: 68px; right: 20px;
+    background: var(--bg2); border: 1px solid var(--border2);
+    padding: 16px 18px; max-width: 270px;
+    font-size: 11.5px; font-family: var(--mono);
+    color: var(--text2); line-height: 2;
+    display: none; z-index: 200;
+  }
+  #rules-panel h4 { color: var(--accent); margin-bottom: 10px; letter-spacing: 2px; font-size: 10px; text-transform: uppercase; }
+  #rules-panel li { margin-left: 14px; margin-bottom: 3px; }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes flicker { 0%,100%{opacity:1} 92%{opacity:1} 93%{opacity:0.3} 94%{opacity:1} 97%{opacity:0.7} 98%{opacity:1} }
+  @keyframes glitch-shift {
+    0%,100%{transform:translate(0)} 20%{transform:translate(-2px,1px)} 40%{transform:translate(2px,-1px)} 60%{transform:translate(-1px,2px)} 80%{transform:translate(1px,-1px)}
+  }
+
+  #text-area { animation: fadeIn 0.35s ease; }
+  #choices-area .choice-btn { animation: fadeIn 0.3s ease both; }
+  #choices-area .choice-btn:nth-child(1) { animation-delay: 0.05s; }
+  #choices-area .choice-btn:nth-child(2) { animation-delay: 0.10s; }
+  #choices-area .choice-btn:nth-child(3) { animation-delay: 0.15s; }
+  #choices-area .choice-btn:nth-child(4) { animation-delay: 0.20s; }
+  #choices-area .choice-btn:nth-child(5) { animation-delay: 0.25s; }
+
+  .flicker { animation: flicker 8s infinite; }
+
+  /* PENALTY FLASH */
+  .penalty-flash {
+    animation: penalty-anim 0.5s ease;
+  }
+  @keyframes penalty-anim {
+    0%{background:rgba(192,88,64,0.25)} 100%{background:transparent}
+  }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--bg3); border: 1px solid var(--accent2);
+    color: var(--accent); font-family: var(--mono); font-size: 12px;
+    letter-spacing: 1px; padding: 8px 20px;
+    opacity: 0; transition: opacity 0.25s;
+    pointer-events: none; z-index: 500; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  /* SCREEN FLICKER on scare */
+  @keyframes scare-flash {
+    0%{opacity:1} 5%{opacity:0} 8%{opacity:1} 12%{opacity:0.2} 15%{opacity:1}
+  }
+  .scare-flash { animation: scare-flash 0.6s ease forwards; }
+
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); }
+</style>
+</head>
+<body>
+
+<!-- ══ INTRO ══ -->
+<div id="intro-screen">
+  <h1>Customer &nbsp;·&nbsp; 顾客</h1>
+  <div class="letter-container">
+    <p class="letter-text no-indent" style="margin-bottom: 18px; color: var(--accent); font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:2px;">FROM 苹果乐天使 —</p>
+    <p class="letter-text">我不能直接给你钱，因为我自己也没多少。但我可以给你提供一个快、又没什么麻烦的赚钱路子。不是什么奇怪的事，不违法，也不涉及性，这方面你不用担心。</p>
+    <p class="letter-text">我有个朋友是一家地产集团的负责人，他们持有一座商场。那座商场在很偏的地方，开车应该不算太远。不管怎样，油钱会补偿给你。</p>
+    <p class="letter-text">事情的核心是这样的。那家商场经营得不太好。如今大多数商场日子都不好过，但这家比别家更惨。但出于某种原因，那家伙就是不太愿意放手。他就是不想让它倒闭。不为什么。你知道有钱人有时候多古怪。</p>
+    <p class="letter-text">你听说过神秘顾客吗？就是雇人假装成顾客在商场和购物中心里闲逛。他招人基本就是干这个的，让这地方看起来还有点人气。</p>
+    <p class="letter-text">你进商场之后，去走廊尽头的 Starbucks。跟吧台服务员说你是"计划"的一员，她会给你 $100 现金。接下来你在商场里的那段时间，把这 $100 花在你想买的任何东西上。<strong>确保全部花光。别攒着。他们会知道的。</strong></p>
+    <p class="letter-text">你待的时间一到，就可以直接离开。但别想提前走。再说一次，他们会知道的。要拿到报酬，你必须在里面待满你的时段。<strong>一秒都不行。我是说真的。</strong></p>
+    <p class="letter-text">报酬如下：每小时 $250，在你离开时立即电子转账。如果他满意你的表现，后续你还有机会再来。目标是攒够 $10,000 还清你的欠款。</p>
+    <p class="letter-text no-indent" style="text-align:right; margin-top:20px; font-style:italic; color:var(--text2);">祝好。</p>
+  </div>
+  <button id="start-btn" onclick="startGame()">前往商场</button>
+</div>
+
+<!-- ══ GAME OVER ══ -->
+<div id="gameover-screen">
+  <h2 id="gameover-title">工作终止</h2>
+  <p id="gameover-text"></p>
+  <p id="gameover-sub" style="color:var(--text3);font-size:13px;"></p>
+  <div class="go-stats" id="gameover-stats"></div>
+  <button id="restart-btn" onclick="restartGame()">重新开始</button>
+</div>
+
+<button id="rules-toggle" onclick="toggleRules()">?</button>
+<div id="rules-panel">
+  <h4>工作备忘</h4>
+  <ul>
+    <li>先去走廊尽头 Starbucks 领 $100</li>
+    <li>今日零钱必须在 8 点前花光</li>
+    <li>每小时工时 = +$250 薪资</li>
+    <li>怀疑度过高 → 停车场有危险</li>
+    <li>晚 8 点后离场 → 车胎被扎</li>
+    <li>7天内凑够 $10,000</li>
+  </ul>
+  <br>
+  <span style="color:var(--text3)">时薪 $250 · 目标 $10,000</span>
+</div>
+
+<!-- ══ MAIN GAME ══ -->
+<div id="game-container">
+  <div id="status-bar">
+    <div class="stat"><span class="lbl">零钱</span><span class="val" id="stat-money">$1</span></div>
+    <div class="stat"><span class="lbl">薪资</span><span class="val" id="stat-earned">$0</span></div>
+    <div class="stat"><span class="lbl">时间</span><span class="val" id="stat-time">Mon 13:00</span></div>
+    <div class="stat"><span class="lbl">位置</span><span class="val" id="stat-location">Entrance</span></div>
+    <div id="susp-bar-wrap">
+      <span id="susp-bar-label">Suspicion</span>
+      <div id="susp-bar-track"><div id="susp-bar-fill"></div></div>
+      <span id="susp-val">0%</span>
+    </div>
+  </div>
+
+  <!-- Scene image -->
+  <div id="scene-img-wrap">
+    <img id="scene-img" src="" alt="">
+    <div id="scene-img-gradient"></div>
+    <div id="scene-img-vignette"></div>
+    <span id="scene-location-label"></span>
+    <span id="scene-time-label" id="scene-time-label"></span>
+  </div>
+
+  <div id="text-area"></div>
+  <div id="choices-area"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════
+const SCENE_IMAGES = {
+  entrance:    'https://images.unsplash.com/photo-1519567770579-c2fc5836898c?w=740&q=75',
+  corridor:    'https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=740&q=75',
+  starbucks:   'https://images.unsplash.com/photo-1511920170033-f8396924c348?w=740&q=75',
+  food_court:  'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=740&q=75',
+  bookstore:   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=740&q=75',
+  clothing:    'https://images.unsplash.com/photo-1445205170230-053b83016050?w=740&q=75',
+  pharmacy:    'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=740&q=75',
+  sporting:    'https://images.unsplash.com/photo-1517963879433-6ad2a56fcd56?w=740&q=75',
+  cinema:      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=740&q=75',
+  restroom:    'https://images.unsplash.com/photo-1620476214170-1d8080f65cdb?w=740&q=75',
+  bench:       'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=740&q=75',
+  parking_ok:  'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=740&q=75',
+  parking_bad: 'https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=740&q=75',
+  nextday:     'https://images.unsplash.com/photo-1494145904049-0dca59b4bbad?w=740&q=75',
+};
+
+const LOC_LABELS = {
+  entrance:   'Westfield Mall — Entrance',
+  corridor:   'Main Corridor',
+  starbucks:  'Starbucks — End of Hall',
+  food_court: 'Food Court — 2F',
+  bookstore:  'Half Price Books',
+  clothing:   'Old Navy',
+  pharmacy:   'Walgreens',
+  sporting:   "Dick's Sporting Goods",
+  cinema:     'Regal Cinemas — 3F',
+  restroom:   'Restrooms',
+  bench:      'Central Atrium',
+  parking_ok: 'Parking Structure — Level B1',
+  parking_bad:'Parking Structure — B1 · Night',
+  nextday:    '— Next Day —',
+};
+
+const DAYS_EN = ['','Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let G = {};
+function initState() {
+  G = {
+    money: 1,
+    earned: 0,
+    totalHours: 0,
+    day: 1,
+    hour: 13,
+    minute: 0,
+    location: 'entrance',
+    starbucksMoneyReceived: false,
+    starbucksEverVisited: false,
+    suspicion: 0,
+    inventory: [],
+    npcMet: {},
+    flags: {},
+    gameOver: false,
+    isLeaving: false,
+    parkingPenaltyCount: 0,   // times car was damaged
+    penaltyMoney: 0,           // total money lost to fines
+    mimicEncounters: 0,        // how many times you met a mimic
+    goodDays: 0,               // clean exit days
+  };
+}
+
+// ════════════════════════════════════════════
+//  UI HELPERS
+// ════════════════════════════════════════════
+function setText(html) {
+  const ta = document.getElementById('text-area');
+  ta.style.animation = 'none';
+  ta.offsetHeight; // reflow
+  ta.style.animation = '';
+  ta.innerHTML = html;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function setChoices(choices) {
+  const el = document.getElementById('choices-area');
+  el.innerHTML = '';
+  choices.filter(Boolean).forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn' + (c.danger ? ' dangerous' : '') + (c.risky ? ' risky-tag' : '');
+    btn.innerHTML = c.label;
+    if (c.disabled) btn.disabled = true;
+    btn.onclick = c.action;
+    el.appendChild(btn);
+  });
+}
+
+function setScene(key) {
+  const img = document.getElementById('scene-img');
+  const src = SCENE_IMAGES[key] || SCENE_IMAGES.corridor;
+  const label = LOC_LABELS[key] || key;
+  img.classList.remove('loaded');
+  img.src = src;
+  img.onload = () => img.classList.add('loaded');
+  document.getElementById('scene-location-label').textContent = label;
+  document.getElementById('scene-time-label').textContent = fmtTime();
+  G.location = key;
+  updateStatus();
+}
+
+function showToast(msg, duration = 2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function scareFlash() {
+  const el = document.getElementById('game-container');
+  el.classList.remove('scare-flash');
+  el.offsetHeight;
+  el.classList.add('scare-flash');
+  setTimeout(() => el.classList.remove('scare-flash'), 700);
+}
+
+function penaltyFlash() {
+  const el = document.getElementById('text-area');
+  el.classList.add('penalty-flash');
+  setTimeout(() => el.classList.remove('penalty-flash'), 600);
+}
+
+function fmtMoney(n) { return '$' + Math.abs(n).toFixed(0); }
+function fmtTime() { return DAYS_EN[G.day] + ' ' + String(G.hour).padStart(2,'0') + ':' + String(G.minute).padStart(2,'0'); }
+function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function chance(p) { return Math.random() < p; }
+
+function updateStatus() {
+  document.getElementById('stat-money').textContent = fmtMoney(G.money);
+  document.getElementById('stat-earned').textContent = fmtMoney(G.earned);
+  document.getElementById('stat-time').textContent = fmtTime();
+
+  const locMap = {
+    entrance:'Entrance', corridor:'Corridor', starbucks:'Starbucks',
+    food_court:'Food Court', bookstore:'Half Price Books', clothing:'Old Navy',
+    pharmacy:'Walgreens', sporting:"Dick's SG", cinema:'Regal', restroom:'Restroom',
+    bench:'Atrium', parking_ok:'Parking', parking_bad:'Parking·Night', nextday:'—'
+  };
+  document.getElementById('stat-location').textContent = locMap[G.location] || G.location;
+  document.getElementById('scene-time-label').textContent = fmtTime();
+
+  // suspicion bar
+  const fill = document.getElementById('susp-bar-fill');
+  const val = document.getElementById('susp-val');
+  const susp = Math.min(100, G.suspicion);
+  fill.style.width = susp + '%';
+  if (susp >= 70) fill.style.background = '#c05840';
+  else if (susp >= 40) fill.style.background = '#c0a040';
+  else fill.style.background = '#58a868';
+  val.textContent = susp + '%';
+  val.style.color = susp >= 70 ? '#c05840' : susp >= 40 ? '#c0a040' : '#486048';
+
+  const monEl = document.getElementById('stat-money');
+  monEl.className = 'val' + (G.money <= 0 ? ' low' : G.money <= 20 ? ' warn' : '');
+  const earnEl = document.getElementById('stat-earned');
+  earnEl.className = 'val' + (G.earned >= 10000 ? ' good' : '');
+}
+
+function passTime(hours, earnWage = true) {
+  if (G.gameOver || G.isLeaving) return false;
+  const minutes = Math.round(hours * 60);
+  G.minute += minutes;
+  while (G.minute >= 60) {
+    G.minute -= 60;
+    G.hour++;
+    if (earnWage) { G.earned += 250; G.totalHours++; }
+  }
+  updateStatus();
+  if (G.hour >= 20) { G.isLeaving = true; triggerEvacuation(); return false; }
+  return true;
+}
+
+function sceneHeader(locKey) {
+  return `<p class="scene-header">${LOC_LABELS[locKey] || locKey} &nbsp;·&nbsp; ${fmtTime()} &nbsp;·&nbsp; Cash: ${fmtMoney(G.money)}</p>`;
+}
+
+function checkEndCondition(forced = false) {
+  if (G.gameOver) return;
+  if (G.earned >= 10000) { triggerGameOver(true, ''); return; }
+  if (forced && G.day >= 7) { triggerGameOver(false, `七天结束了。你最终只攒下了 ${fmtMoney(G.earned)}，距离 $10,000 还差得远。`); }
+}
+
+// ════════════════════════════════════════════
+//  MIMIC NPC LINES  (horror: unsettling, not jumpscare)
+// ════════════════════════════════════════════
+const MIMIC_ENCOUNTERS = [
+  {
+    setup: '走廊里有个男人靠在关闭的店铺门上，手机屏幕朝着你，但你看不出屏幕上有任何内容。他看见你停下来，把手机放进口袋，冲你走过来。',
+    line: '"你知道这里以前是什么吗？"他停下，笑了一下，"就是一个普通商场。什么都没有发生过。一直都很正常。你也觉得很正常，对吧？"',
+    safe_choice: '点头，错开他的视线走开',
+    safe_susp_delta: -5,
+    risky_choice: '问他在这里干什么',
+    risky_susp_delta: 18,
+  },
+  {
+    setup: '收银台前，一个女人在结账，她和店员说了些什么，然后她们同时停了下来，一起看向你，表情和角度是一模一样的。',
+    line: '"您好。"她们同时开口，"您今天买了什么？"',
+    safe_choice: '举起手中的东西，简短回答，继续走',
+    safe_susp_delta: -8,
+    risky_choice: '不动声色地往后退两步，转身离开',
+    risky_susp_delta: 12,
+  },
+  {
+    setup: '美食广场的桌子旁，一个老人对着空座位说话，声音很低。你走近，才发现他说的是："……你要装得像你在等人，不能让他们觉得你没有目的……"',
+    line: '他抬起头，看见你，话立刻停了。沉默了三秒后："坐下来，顾客。点点东西。"',
+    safe_choice: '找另一张桌子坐下，点了东西',
+    safe_susp_delta: -6,
+    risky_choice: '问他刚才在说什么',
+    risky_susp_delta: 22,
+  },
+  {
+    setup: '洗手间镜子前，只有你一个人。你洗完手，抬起头。镜子里，你身后站着一个穿卡其裤的男人，你确信你进来时没有人。你转身——没有人。再看镜子——他不见了。',
+    line: null,
+    safe_choice: '用纸巾擦手，平静地走出去',
+    safe_susp_delta: 0,
+    risky_choice: '在洗手间里多待一会儿，试图弄清楚',
+    risky_susp_delta: 15,
+  },
+  {
+    setup: '书店里，一个孩子站在书架前，你路过时他没有动。你回过头，发现他在看你，不是普通的小孩打量陌生人——是用一种你说不清楚的、完全平静的眼神。',
+    line: '"你在找什么书？"他问，声音比你预期的低，"这里有很多关于如何表现得像别人的书。"',
+    safe_choice: '笑了笑，拿起一本书假装看',
+    safe_susp_delta: -4,
+    risky_choice: '低声反问："你是什么意思？"',
+    risky_susp_delta: 20,
+  },
+  {
+    setup: '你在 Old Navy 试衣间里换衣服，隔壁的帘子一直没有人进去。但你能听见里面有轻微的、均匀的呼吸声。你走出试衣间，回头看——帘子拉着，没有人出来过。',
+    line: null,
+    safe_choice: '把衣服拿去结账，当作什么都没有发生',
+    safe_susp_delta: -3,
+    risky_choice: '拉开帘子看一眼',
+    risky_susp_delta: 25,
+    risky_outcome_bad: '帘子里是空的。但地板上有一双鞋，鞋里还有袜子。没有人穿着它们。',
+  },
+];
+
+const FRIENDLY_NPC_LINES = [
+  { name: '一个女人', line: '她站在橱窗前，手提袋上的标签还没撕，买了很多东西。她侧过头，压低声音："这地方很无聊，对吧。但钱不会骗人。"她没有等你回答，走了。' },
+  { name: '老人', line: '他拿着一杯 Starbucks 坐在长椅上。日报放在旁边，他没有看。你们对视了一秒，他把杯子轻轻往你方向推了一点，然后移开了视线。' },
+  { name: '年轻男人', line: '"你也是第一次来这家吗？"他问，口气随意，像是闲聊。但他买的东西的袋子，你看见里面只有收据，没有商品。他很快转移了话题，"电影院今天在放什么。"' },
+];
+
+// ════════════════════════════════════════════
+//  PUNISHMENT SYSTEM (expanded)
+// ════════════════════════════════════════════
+
+// Tracks multiple violation types
+function addSuspicion(delta, reason) {
+  G.suspicion = Math.min(100, G.suspicion + delta);
+  if (reason) showToast(`⚠ ${reason}  +${delta}%`, 1800);
+  updateStatus();
+  if (G.suspicion >= 100) {
+    G.isLeaving = true;
+    triggerMimicCapture();
+  }
+}
+
+function triggerMimicCapture() {
+  scareFlash();
+  setScene('corridor');
+  let html = `<p class="scene-header">⚠ 异常状态 · Suspicion 100%</p>`;
+  html += `<p class="narrative warning">你感觉到了，已经有一段时间了——那种背后被什么东西盯着的感觉，那种空气里多了一层什么东西的感觉。</p>`;
+  html += `<p class="narrative">商场的背景音乐在你没有注意到的某个时刻停了。你现在才意识到这一点。</p>`;
+  html += `<p class="narrative">有三个人同时出现在走廊的两端和你身后。他们不是跑步，他们只是……在那里，就好像他们一直都在那里一样。</p>`;
+  html += `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"你可以继续走。我们只是想知道，你今天买了什么？"</div></div>`;
+  html += `<p class="narrative thought">你的脑子在飞速运转，你记得你买了什么，你记得收据在哪里，你能解释清楚，只要你保持镇定……</p>`;
+  setText(html);
+
+  setChoices([
+    {
+      label: '【镇定】拿出今天所有的购物袋，把收据一张张摆出来',
+      action: () => {
+        if (G.inventory.length >= 2) {
+          let h = `<p class="narrative">你一件件把东西摆在长椅上。他们看了很久，没有说话。</p>`;
+          h += `<p class="narrative">然后，最近的那个人侧过头，一个角度比正常人的颈椎极限再多十五度，点了点头。</p>`;
+          h += `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"好的。那就好。顾客应该有收据。"</div></div>`;
+          h += `<p class="narrative green">他们散开了。你的手在抖。</p>`;
+          h += `<p class="narrative system">购物记录勉强自证了你的身份。今晚离开之前，绝对不能再出任何差错。</p>`;
+          G.suspicion = 60;
+          updateStatus();
+          setText(h);
+          setChoices([{ label: '用尽全力保持步伐的节奏，走向出口', action: triggerEvacuation }]);
+        } else {
+          let h = `<p class="narrative">你翻了翻袋子，只有一两样东西，甚至有一个袋子是空的。</p>`;
+          h += `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"就这些？"沉默。"在商场里待了这么长时间。就这些。"</div></div>`;
+          h += `<p class="narrative warning">你能感觉到他们在互相看，虽然你看不见他们的脸在动。</p>`;
+          setText(h);
+          setChoices([{ label: '……', action: () => triggerGameOver(false, '你没有足够的购物记录来证明你是一名真实的顾客。他们的手很冷。') }]);
+        }
+      }
+    },
+    {
+      label: '"我刚来，我只是在逛，我没有……"',
+      danger: true,
+      action: () => {
+        if (chance(0.3)) {
+          let h = `<p class="narrative">你说话的语气太真实了——那种真实的慌乱，那种真实的词不达意，那种真实的顾客被陌生人拦住时会有的反应。</p>`;
+          h += `<p class="narrative">他们停了停。其中一个往后退了一步。</p>`;
+          h += `<p class="narrative system">过于真实的恐惧产生了意外效果。</p>`;
+          G.suspicion = 55;
+          updateStatus();
+          setText(h);
+          setChoices([{ label: '趁他们迟疑，快步离开', action: triggerEvacuation }]);
+        } else {
+          let h = `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"你逛了多久了？"<br>"你进来时在哪里停的车？"<br>"你来之前吃饭了吗？在哪里吃的？"</div></div>`;
+          h += `<p class="narrative">问题连续不断，间隔精确，就像一份表格。你跟不上。</p>`;
+          setText(h);
+          setChoices([{ label: '……', action: () => triggerGameOver(false, '你的回答里有一个逻辑漏洞。就一个。他们找到了它。') }]);
+        }
+      }
+    }
+  ]);
+}
+
+// ── NEW: Dynamic penalty events ──
+const PENALTY_EVENTS = [
+  // Triggered when suspicion is 35-60, mid-tier unease
+  {
+    id: 'followed',
+    minSusp: 30,
+    desc: () => {
+      let h = `<p class="narrative">你注意到走廊对面那个戴棒球帽的男人已经出现过三次了。不同的位置，相同的帽子，相同的姿势——手插在口袋里，看着手机，但手机屏幕没有亮过。</p>`;
+      h += `<p class="narrative thought">这也许只是巧合。商场不大，有些人会在里面转很多圈。</p>`;
+      return h;
+    },
+    choices: [
+      { label: '刻意绕路，进一家店，从另一个出口出来', action: () => { G.suspicion = Math.max(0, G.suspicion - 10); showToast('摆脱了 −10%', 2000); sceneEntrance(); } },
+      { label: '走到他面前，问他几点了（表现自然）', action: () => {
+        G.flags.confrontedFollower = true;
+        let h = `<p class="narrative">他抬起头，看了你两秒，报了一个时间，然后把视线移回去。他的手机屏幕还是黑的。</p>`;
+        h += `<p class="narrative italic">你走开了。他没有再跟着你。</p>`;
+        h += `<p class="narrative system">他们似乎不再对你感到疑惑。</p>`;
+        G.suspicion = Math.max(0, G.suspicion - 15);
+        updateStatus();
+        setText(h);
+        setChoices([{ label: '继续', action: sceneEntrance }]);
+      }},
+    ]
+  },
+  // Triggered when money is near zero and time is running out
+  {
+    id: 'zero_money',
+    condition: () => G.money <= 5 && G.hour <= 18 && G.starbucksMoneyReceived,
+    desc: () => {
+      return `<p class="narrative warning">你已经把零钱花得差不多了，但离 8 点还早。口袋里快空了，而那些视线不会在乎这一点。</p>`;
+    },
+    choices: [
+      { label: '在美食广场坐着，假装在等人（每小时 +$250 工资）', action: () => { if(passTime(1)) { G.suspicion += 10; showToast('在同一地方待太久 +10%'); sceneEntrance(); }}},
+      { label: '去洗手间里待着', action: () => { if(passTime(0.5)) { G.suspicion += 18; showToast('长时间占用洗手间 +18%'); sceneEntrance(); }}},
+    ]
+  }
+];
+
+// ════════════════════════════════════════════
+//  SCENES
+// ════════════════════════════════════════════
+function sceneEntrance() {
+  setScene('entrance');
+  let html = sceneHeader('entrance');
+
+  if (!G.starbucksMoneyReceived) {
+    html += `<p class="narrative warning">你还没去走廊尽头的 Starbucks。在那之前，其他的选项都没有意义。</p>`;
+  } else {
+    html += `<p class="narrative">中庭，空调声，和遥远的背景音乐——某首你认识但想不起名字的歌，循环播放，永远在同一段。</p>`;
+    if (chance(0.35)) html += randomNPCPassage();
+  }
+
+  // Dynamic penalty event check
+  if (G.suspicion >= 30 && !G.flags.followedEvent && chance(0.4)) {
+    G.flags.followedEvent = true;
+    html += PENALTY_EVENTS[0].desc();
+    setText(html);
+    setChoices(PENALTY_EVENTS[0].choices);
+    return;
+  }
+
+  setText(html);
+  const locked = !G.starbucksMoneyReceived;
+  setChoices([
+    { label: '走廊尽头的 Starbucks' + (G.starbucksEverVisited ? '（今日已领钱）' : '（首次）'), action: () => { if(passTime(0.2)) sceneStarbucks(); } },
+    { label: 'Food Court — 美食广场（2F）', disabled: locked, action: () => { if(passTime(0.4)) sceneFoodCourt(); } },
+    { label: 'Half Price Books — 书店', disabled: locked, action: () => { if(passTime(0.3)) sceneBookstore(); } },
+    { label: 'Old Navy — 服装店', disabled: locked, action: () => { if(passTime(0.3)) sceneClothing(); } },
+    { label: "Dick's Sporting Goods — 运动用品", disabled: locked, action: () => { if(passTime(0.3)) sceneSporting(); } },
+    { label: 'Walgreens — 药妆店', disabled: locked, action: () => { if(passTime(0.3)) scenePharmacy(); } },
+    { label: 'Regal Cinemas — 影院', disabled: locked, action: () => { if(passTime(0.3)) sceneCinema(); } },
+    { label: '中庭长椅区（消磨时间）', disabled: locked, action: () => { addSuspicion(10, '无目的停留'); if(passTime(1)) sceneBench(); } },
+    { label: '洗手间 Restrooms', disabled: locked, action: () => { if(passTime(0.1)) sceneRestroom(); } },
+    { label: '在走廊漫无目的闲逛', disabled: locked, action: () => { addSuspicion(3, '漫无目的'); if(passTime(0.5)) sceneEntrance(); } },
+  ]);
+}
+
+function sceneStarbucks() {
+  setScene('starbucks');
+  let html = sceneHeader('starbucks');
+
+  if (!G.starbucksMoneyReceived) {
+    if (!G.starbucksEverVisited) {
+      // First ever visit — long version (your original text preserved)
+      html += `<p class="narrative">那家 Starbucks 在走廊的尽头，中间全是废弃的店铺，就像故意不想被人发现一样。</p>`;
+      html += `<p class="narrative">但更引人注意的是柜台后那个女性咖啡师的表情，好像你是什么地球的祸害似的。好像你刚在她面前杀了十只小狗，然后还以此为乐。</p>`;
+      html += `<p class="narrative thought">她的表情让你困惑到脑子当场短路，忘了你该说什么。</p>`;
+      html += `<p class="narrative">在你磕磕巴巴地说了几个词不达意的句子之后，终于想起来了，脱口而出："我——呃，是计划的一员。"</p>`;
+      html += `<p class="narrative">她叹了口气，竟然翻了个白眼，然后问你想点什么。你就像个白痴一样盯着她。你只能又跟她说了一遍，你是计划的一员。</p>`;
+      html += `<p class="narrative">她摇了摇头，又叹了口气。声音压得很低，同时狠狠瞪着你："你得先买点东西。他们没告诉你？"</p>`;
+      html += `<p class="narrative">"你应该先买点东西，给我一些现金，然后我找你零钱。明白了吗？所以点个东西，然后给我点现金。多少都行。"</p>`;
+      html += `<p class="narrative thought">你记得这时候你开始有点头晕。你想着这是真的吗？你是不是在做梦？</p>`;
+      setText(html);
+      setChoices([{
+        label: '翻出钱包里那张皱巴巴的 $1，点一杯黑咖啡',
+        action: () => {
+          G.starbucksMoneyReceived = true;
+          G.starbucksEverVisited = true;
+          G.money = 100;
+          updateStatus();
+          let h = sceneHeader('starbucks');
+          h += `<p class="narrative">你把那张唯一的一美元钞票拿出来递给她。她一把从你手里抽走，扔进收银机，然后递回一小叠崭新的十美元钞票。</p>`;
+          h += `<p class="narrative">你飞快地数了一下。一共十张。刚好一百美元。</p>`;
+          h += `<p class="narrative">你转过身，正准备离开，她又把你叫住了，问你是不是忘了什么？你停下来，转过身，她开始慢悠悠地做那杯咖啡，动作缓慢，几乎有点吃力。你注意到她走路时有点跛。</p>`;
+          h += `<p class="narrative">她花了几分钟才做好，然后把杯子递过来，在你接过的时候又狠狠瞪了你最后一眼。</p>`;
+          setText(h);
+          setChoices([{ label: '端着黑咖啡离开', action: sceneEntrance }]);
+        }
+      }]);
+    } else {
+      // Return visits
+      html += `<p class="narrative">你再次穿过那些废弃的商铺，来到了走廊尽头的 Starbucks。那个跛脚的咖啡师一抬头看见是你，没有任何废话。</p>`;
+      html += `<div class="dialogue"><div class="spk">Barista</div><div class="line">"还是老规矩。"</div></div>`;
+      html += `<p class="narrative">你递过那张皱巴巴的 $1，她抽走，甩给你一叠新钱（$100），跛着脚把黑咖啡推到柜台上。这一次她甚至没有再狠狠瞪你。</p>`;
+      setText(html);
+      setChoices([{
+        label: '收下今日 $100，拿起咖啡离开',
+        action: () => {
+          G.starbucksMoneyReceived = true;
+          G.money = 100;
+          updateStatus();
+          sceneEntrance();
+        }
+      }]);
+    }
+  } else {
+    html += `<p class="narrative">你今天已经来过了。跛脚的咖啡师擦着台面，把你当空气。</p>`;
+    setText(html);
+    setChoices([
+      G.money >= 8 ? { label: '再买一杯拿铁消磨时间 −$8', action: () => { G.money -= 8; G.suspicion = Math.max(0, G.suspicion - 4); showToast('−$8  怀疑 −4%'); if(passTime(0.5)) sceneEntrance(); }} : null,
+      { label: '离开', action: sceneEntrance }
+    ]);
+  }
+}
+
+function sceneFoodCourt() {
+  setScene('food_court');
+  let html = sceneHeader('food_court');
+  html += `<p class="narrative">美食广场嘈杂，油烟气，各种快餐的气味叠在一起。Panda Express、Subway、Five Guys——每家都开着，生意不算好，但有人在排队，有人在吃，有人低头看手机。</p>`;
+  // random mimic chance
+  if (chance(0.3)) html += getMimicPassage();
+  setText(html);
+  setChoices([
+    G.money >= 12 ? { label: 'Subway 三明治 −$12', action: () => { G.money -= 12; G.inventory.push('Subway'); G.suspicion = Math.max(0,G.suspicion-8); showToast('−$12  怀疑 −8%  （消费有效）'); if(passTime(0.5)) sceneEntrance(); } } : null,
+    G.money >= 20 ? { label: 'Five Guys 汉堡套餐 −$20', action: () => { G.money -= 20; G.inventory.push('Five Guys'); G.suspicion = Math.max(0,G.suspicion-10); showToast('−$20  怀疑 −10%'); if(passTime(0.6)) sceneEntrance(); } } : null,
+    G.money >= 9  ? { label: 'Panda Express 外卖盒 −$9', action: () => { G.money -= 9;  G.inventory.push('Panda Express'); G.suspicion = Math.max(0,G.suspicion-6); showToast('−$9  怀疑 −6%'); if(passTime(0.4)) sceneEntrance(); } } : null,
+    { label: '只坐着，什么都不点', risky: true, action: () => { addSuspicion(15, '占座不点餐'); if(passTime(1)) sceneEntrance(); } },
+    { label: '离开', action: sceneEntrance }
+  ]);
+}
+
+function sceneBookstore() {
+  setScene('bookstore');
+  let html = sceneHeader('bookstore');
+  html += `<p class="narrative">Half Price Books，书架从地面一直排到天花板。这里的书很杂——精装小说、旧教材、过期的《National Geographic》。书的气味和空调的气味混在一起。</p>`;
+  if (chance(0.4)) html += getMimicPassage();
+  setText(html);
+  setChoices([
+    G.money >= 12 ? { label: '买一本平装小说 −$12', action: () => { G.money -= 12; G.inventory.push('book'); G.suspicion = Math.max(0,G.suspicion-6); showToast('−$12  怀疑 −6%'); if(passTime(0.5)) sceneEntrance(); } } : null,
+    G.money >= 28 ? { label: '买几本旧杂志 −$28', action: () => { G.money -= 28; G.inventory.push('magazines'); G.suspicion = Math.max(0,G.suspicion-8); showToast('−$28  怀疑 −8%'); if(passTime(0.5)) sceneEntrance(); } } : null,
+    G.money >= 45 ? { label: '精装文学书 −$45', action: () => { G.money -= 45; G.inventory.push('hardcover'); G.suspicion = Math.max(0,G.suspicion-12); showToast('−$45  怀疑 −12%'); if(passTime(0.5)) sceneEntrance(); } } : null,
+    { label: '在书架旁站着翻书，什么都不买', risky: true, action: () => { addSuspicion(12, '久站不买'); if(passTime(0.4)) sceneEntrance(); } },
+    { label: '离开', action: sceneEntrance }
+  ]);
+}
+
+function sceneClothing() {
+  setScene('clothing');
+  let html = sceneHeader('clothing');
+  html += `<p class="narrative">Old Navy，宽敞，灯光明亮，折扣标签挂在每件衣服上。店里有几个人在逛，店员站在折叠台后面整理衣服，表情平静。</p>`;
+  if (chance(0.3)) html += getMimicPassage();
+  setText(html);
+  setChoices([
+    G.money >= 35 ? { label: 'T恤或休闲裤 −$35', action: () => { G.money -= 35; G.inventory.push('clothing'); G.suspicion = Math.max(0,G.suspicion-8); showToast('−$35  怀疑 −8%'); if(passTime(0.4)) sceneEntrance(); } } : null,
+    G.money >= 60 ? { label: '外套或牛仔裤 −$60', action: () => { G.money -= 60; G.inventory.push('jacket'); G.suspicion = Math.max(0,G.suspicion-14); showToast('−$60  怀疑 −14%'); if(passTime(0.5)) sceneEntrance(); } } : null,
+    { label: '试穿却什么都不买', risky: true, action: () => { addSuspicion(22, '试穿不买'); if(passTime(0.5)) sceneEntrance(); } },
+    { label: '离开', action: sceneEntrance }
+  ]);
+}
+
+function scenePharmacy() {
+  setScene('pharmacy');
+  let html = sceneHeader('pharmacy');
+  html += `<p class="narrative">Walgreens，白色荧光灯，货架整齐。药品区、零食区、日用品区——一切都标着价格，结账台后面坐着一个人，在看手机。</p>`;
+  if (chance(0.25)) html += getMimicPassage();
+  setText(html);
+  setChoices([
+    G.money >= 14 ? { label: '饮料和零食 −$14', action: () => { G.money -= 14; G.inventory.push('snacks'); G.suspicion = Math.max(0,G.suspicion-5); showToast('−$14  怀疑 −5%'); if(passTime(0.3)) sceneEntrance(); } } : null,
+    G.money >= 22 ? { label: '日用品（洗发水、牙刷等）−$22', action: () => { G.money -= 22; G.inventory.push('toiletries'); G.suspicion = Math.max(0,G.suspicion-7); showToast('−$22  怀疑 −7%'); if(passTime(0.4)) sceneEntrance(); } } : null,
+    G.money >= 38 ? { label: '维生素和药品 −$38', action: () => { G.money -= 38; G.inventory.push('meds'); G.suspicion = Math.max(0,G.suspicion-10); showToast('−$38  怀疑 −10%'); if(passTime(0.4)) sceneEntrance(); } } : null,
+    { label: '离开', action: sceneEntrance }
+  ]);
+}
+
+function sceneSporting() {
+  setScene('sporting');
+  let html = sceneHeader('sporting');
+  html += `<p class="narrative">Dick's Sporting Goods，运动鞋墙，球类器材，健身器械。几个男人在试鞋，有人在打折区翻运动裤。</p>`;
+  if (chance(0.25)) html += getMimicPassage();
+  setText(html);
+  setChoices([
+    G.money >= 30 ? { label: '运动袜或护腕 −$30', action: () => { G.money -= 30; G.inventory.push('sport-small'); G.suspicion = Math.max(0,G.suspicion-6); showToast('−$30  怀疑 −6%'); if(passTime(0.3)) sceneEntrance(); } } : null,
+    G.money >= 75 ? { label: '运动鞋 −$75', action: () => { G.money -= 75; G.inventory.push('sneakers'); G.suspicion = Math.max(0,G.suspicion-16); showToast('−$75  怀疑 −16%'); if(passTime(0.5)) sceneEntrance(); } } : null,
+    G.money >= 55 ? { label: '运动服套装 −$55', action: () => { G.money -= 55; G.inventory.push('sportswear'); G.suspicion = Math.max(0,G.suspicion-12); showToast('−$55  怀疑 −12%'); if(passTime(0.4)) sceneEntrance(); } } : null,
+    { label: '离开', action: sceneEntrance }
+  ]);
+}
+
+function sceneCinema() {
+  setScene('cinema');
+  let html = sceneHeader('cinema');
+  html += `<p class="narrative">Regal Cinemas，三楼，爆米花的气味从检票口漏出来。告示板上有几部电影，有一部你认识，有几部没听说过。</p>`;
+  html += `<p class="narrative thought">看电影是一个完美的理由——正常顾客会这样做，而且两个小时，不需要解释任何事。</p>`;
+  setText(html);
+  setChoices([
+    G.money >= 16 ? { label: '买票看一部电影 −$16', action: () => {
+      G.money -= 16; G.inventory.push('movie ticket');
+      G.suspicion = Math.max(0, G.suspicion - 25);
+      showToast('−$16  怀疑 −25%  （最自然的行为）');
+      if(passTime(2)) sceneEntrance();
+    } } : null,
+    G.money >= 9 ? { label: '只买爆米花在大厅晃 −$9', action: () => { G.money -= 9; G.suspicion = Math.max(0,G.suspicion-8); showToast('−$9  怀疑 −8%'); if(passTime(0.5)) sceneEntrance(); } } : null,
+    { label: '离开', action: sceneEntrance }
+  ]);
+}
+
+function sceneRestroom() {
+  setScene('restroom');
+  let html = sceneHeader('restroom');
+  html += `<p class="narrative">洗手间。白色灯光，镜子，洗手台的水声。</p>`;
+  if (chance(0.45)) {
+    const m = MIMIC_ENCOUNTERS[3]; // the mirror one
+    html += `<p class="narrative">${m.setup}</p>`;
+  } else {
+    html += `<p class="narrative italic">这里没有背景音乐。你能听见荧光灯在嗡嗡作响。</p>`;
+  }
+  setText(html);
+  setChoices([
+    { label: '正常用了洗手间，洗手，出去', action: () => { G.suspicion = Math.max(0, G.suspicion - 3); if(passTime(0.1)) sceneEntrance(); } },
+    { label: '在里面多待了一会儿，试图冷静', risky: true, action: () => { addSuspicion(15, '长时间占用洗手间'); if(passTime(0.3)) sceneEntrance(); } }
+  ]);
+}
+
+function sceneBench() {
+  setScene('bench');
+  let html = sceneHeader('bench');
+  html += `<p class="narrative">中庭的长椅，人来人往，没有人在看你。或者说你希望是这样。</p>`;
+  if (chance(0.5)) {
+    const fl = rand(FRIENDLY_NPC_LINES);
+    html += `<p class="narrative italic">${fl.line}</p>`;
+    html += `<p class="narrative thought">你想——他是正常的顾客，还是和你一样的人？你做不出判断。</p>`;
+  } else {
+    html += `<p class="narrative">对面一个戴墨镜的男人，头部旋转了一个不自然的角度，朝向你停住了。</p>`;
+  }
+  setText(html);
+  setChoices([
+    { label: '坐着，刷手机', risky: true, action: () => { addSuspicion(15, '长时间在中庭停留'); if(passTime(1)) sceneBench(); } },
+    { label: '起身去别处', action: sceneEntrance }
+  ]);
+}
+
+// ════════════════════════════════════════════
+//  NPC HELPERS
+// ════════════════════════════════════════════
+function getMimicPassage() {
+  G.mimicEncounters++;
+  const m = MIMIC_ENCOUNTERS[Math.floor(Math.random() * MIMIC_ENCOUNTERS.length)];
+  let html = `<p class="narrative">${m.setup}</p>`;
+  if (m.line) html += `<div class="dialogue mimic"><div class="spk">陌生人</div><div class="line">${m.line}</div></div>`;
+  // append choices inline is complex, we just show the passage and let player continue
+  // Full encounters happen at sceneEntrance for randomEvent
+  return html;
+}
+
+function randomNPCPassage() {
+  const pool = [
+    '一个女人从你身边经过，提着三个袋子，你没有看到她进过任何一家店铺。',
+    '广播音乐在某个地方卡了一下，重复了同一个音节三次，然后继续了。',
+    '长椅上的老人在看报纸，同一页，二十分钟没有翻过。',
+    '一个小孩跑过来在你对面站住，打量了你三秒，然后跑走了，没有叫妈妈。',
+    '打电话的男人从你旁边走过，你听见他说："……还没有……是的……我明白……"他手里的手机屏幕是黑的。',
+  ];
+  return `<p class="narrative italic">${rand(pool)}</p>`;
+}
+
+// ════════════════════════════════════════════
+//  EVACUATION & PARKING
+// ════════════════════════════════════════════
+function triggerEvacuation() {
+  G.location = 'parking_bad';
+  updateStatus();
+  let html = `<p class="scene-header">Closing Time · 20:00</p>`;
+  html += `<p class="narrative warning">商场的灯在一瞬间灭了大半。广播响起，声音干净而空洞："The mall is now closing. All customers please proceed to the exit. Thank you for shopping at Westfield."</p>`;
+
+  // PENALTY: money not spent
+  if (G.money > 0 && G.starbucksMoneyReceived) {
+    penaltyFlash();
+    html += `<p class="narrative warning"><strong>你身上还有 ${fmtMoney(G.money)} 没花完。</strong> 这违反了规则。</p>`;
+    html += `<p class="narrative">走向地下停车场的路上，空气里有什么东西不对。太安静了。人群里有几个人走得和你方向一致，步伐的节奏和你完全同步。</p>`;
+    setText(html);
+    setChoices([{ label: '假装检查手机，放慢速度……', action: () => { triggerPunishment('money_not_spent'); } }]);
+    return;
+  }
+
+  // PENALTY: high suspicion
+  if (G.suspicion >= 70) {
+    penaltyFlash();
+    html += `<p class="narrative warning">你今天留下了太多的痕迹。</p>`;
+    html += `<p class="narrative">在下电梯时，你被三个穿便服的人呈三角型包围了。他们的脸部肌肉轻微地、但可见地，不太对。</p>`;
+    setText(html);
+    setChoices([{ label: '尽量让步伐看起来正常……', action: () => { triggerPunishment('high_suspicion'); } }]);
+    return;
+  }
+
+  // Clean exit — but maybe flat tire
+  const isLate = G.hour >= 20 || (G.hour === 20 && G.minute > 0);
+  if (isLate) {
+    html += `<p class="narrative">你是最后一批出来的人之一。停车场里的灯有一半不亮了。</p>`;
+    html += `<p class="narrative warning">你的左前轮瘪了。</p>`;
+    setText(html);
+    setChoices([{ label: '在停车场等待……', action: handleFlatTire }]);
+  } else {
+    G.goodDays++;
+    html += `<p class="narrative green">你今天表现得足够好。钱花光了，行迹自然，没有引起太多注意。你跟着人流走出了商场。</p>`;
+    html += `<p class="narrative italic">停车场里，你的车完好无损。驶上主干道时，手机叮咚一声——今日薪资已转入账户。</p>`;
+    setText(html);
+    setChoices([{ label: '回家，准备明天……', action: nextDay }]);
+  }
+}
+
+function handleFlatTire() {
+  setScene('parking_bad');
+  let html = `<p class="scene-header">停车场 · 夜</p>`;
+  html += `<p class="narrative">你蹲下来看轮胎。铁钉，很粗，故意放的。停车场里没有其他人。</p>`;
+  html += `<p class="narrative">然后，脚步声。很慢，但很稳，回声在混凝土柱子间弹来弹去，你分不清来自哪个方向。</p>`;
+  setText(html);
+  setChoices([
+    { label: '靠在车旁等待，假装在打电话', action: () => {
+      const good = chance(0.55 - G.suspicion * 0.003);
+      if (good) {
+        let h = `<p class="narrative">脚步声在你身后停下来，又走开了。</p>`;
+        h += `<p class="narrative">二十分钟后，一个戴鸭舌帽的男人绕过来，看了看你的轮胎，什么都没说，从后备箱里拿出工具，帮你换了备胎。</p>`;
+        h += `<p class="narrative italic">他没有要求任何回报。他的车离停车场出口很远，但他直接从那个方向走回去了。</p>`;
+        h += `<p class="narrative thought">你想——他是好人，还是别的什么？你最终想不明白，也不打算再想了。</p>`;
+        G.earned -= 0; // no penalty on good outcome
+        setText(h);
+        setChoices([{ label: '开车回家', action: nextDay }]);
+      } else {
+        flatTireBadEncounter();
+      }
+    }},
+    { label: '放弃车子，全速跑向停车场出口', action: () => {
+      G.parkingPenaltyCount++;
+      G.earned = Math.max(0, G.earned - 80);
+      G.penaltyMoney += 80;
+      let h = `<p class="narrative">你跑起来，那种感觉追上来了，但你上了主干道，路灯亮着，有行人，那股东西停下了。</p>`;
+      h += `<p class="narrative system">丢弃车辆。明日 Uber 费用 −$80 从薪资扣除。</p>`;
+      setText(h);
+      setChoices([{ label: '打车回家', action: nextDay }]);
+    }}
+  ]);
+}
+
+function flatTireBadEncounter() {
+  scareFlash();
+  let html = `<p class="narrative">脚步声在你背后停住了。</p>`;
+  html += `<p class="narrative">你转过身。</p>`;
+  html += `<p class="narrative">是个女人，三十多岁，普通的衣服，普通的脸。她笑了一下，步子没停，走近。</p>`;
+  html += `<div class="dialogue mimic"><div class="spk">陌生女人</div><div class="line">"你的车坏了？这里晚上不太安全。我可以帮你叫人。"</div></div>`;
+  html += `<p class="narrative">她的手插在口袋里。</p>`;
+  html += `<p class="narrative thought">她没有拿出手机。</p>`;
+  setText(html);
+  setChoices([
+    { label: '道谢，让她帮你联系救援', action: () => {
+      if (chance(0.45)) {
+        let h = `<p class="narrative">救援半小时后来了。她全程陪着你站在停车场里，一句话都没有说。</p>`;
+        h += `<p class="narrative">救援离开之后，她也走了。你开车上路，一直开到路灯连成一片的地方，才敢把车窗降下来。</p>`;
+        setText(h);
+        setChoices([{ label: '回家', action: nextDay }]);
+      } else {
+        let h = `<div class="dialogue mimic"><div class="spk">陌生女人</div><div class="line">"我帮你打了电话。他们说你不应该在这里。你知道吗？你不应该在这里这么晚。"</div></div>`;
+        h += `<p class="narrative">她的声音没有变，笑容也没有变，但她走近了一步，"你今天买了什么？"</p>`;
+        setText(h);
+        setChoices([{ label: '……', action: () => triggerGameOver(false, '她的问题听起来很普通。但没有人在停车场黑暗里问这个问题。') }]);
+      }
+    }},
+    { label: '礼貌但坚定地拒绝，继续自己打电话', action: () => {
+      let h = `<p class="narrative">她点了点头，走了。</p>`;
+      h += `<p class="narrative">你等了四十分钟，救援来了。换完轮胎，你开车上路，一直没有回头看。</p>`;
+      G.earned = Math.max(0, G.earned - 50);
+      G.penaltyMoney += 50;
+      h += `<p class="narrative system">救援费用 −$50 从薪资扣除。</p>`;
+      setText(h);
+      setChoices([{ label: '回家', action: nextDay }]);
+    }}
+  ]);
+}
+
+// ════════════════════════════════════════════
+//  PUNISHMENT BRANCH
+// ════════════════════════════════════════════
+function triggerPunishment(reason) {
+  G.isLeaving = true;
+  penaltyFlash();
+  let html = `<p class="scene-header">⚠ Crisis Event</p>`;
+
+  if (reason === 'money_not_spent') {
+    html += `<p class="narrative">走廊里有人和你同步，一步不差。你走快，他走快，你停，他停，就这样，没有靠近，也没有远去。</p>`;
+    html += `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"你的钱包……还是鼓的。"</div></div>`;
+    html += `<p class="narrative">不是指责，就是一个陈述。</p>`;
+  } else if (reason === 'high_suspicion') {
+    html += `<p class="narrative">三个人。走廊两端和你身后，同一时间出现。他们不是跑来的，他们只是在那里了。</p>`;
+    html += `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"你在商场里做什么？"停顿。"具体说说。"</div></div>`;
+    html += `<p class="narrative italic">问题本身没什么问题。但他们的嘴唇在动的时候，表情没有跟着动。</p>`;
+  }
+
+  html += `<p class="narrative thought">你知道你现在的每一个动作都会被记录下来。</p>`;
+  setText(html);
+
+  setChoices([
+    {
+      label: '【冷静】掏出收据和购物袋，陈述今天做了什么',
+      action: () => {
+        if (G.inventory.length >= 2 && chance(0.6)) {
+          G.suspicion = Math.max(25, G.suspicion - 35);
+          let h = `<p class="narrative">你把东西一件件拿出来。你买了什么，在哪里买的，花了多少。</p>`;
+          h += `<p class="narrative">他们看了很长时间，然后其中一个侧了一下头，一个略微过度的角度，侧回来。</p>`;
+          h += `<p class="narrative green">他们离开了。你的衬衫湿透了。</p>`;
+          h += `<p class="narrative system">【通过】消费记录充分，风险解除。但今天的危险没有完全过去。</p>`;
+          updateStatus();
+          setText(h);
+          setChoices([{ label: '走向停车场', action: handleParkingEvents }]);
+        } else {
+          let h = `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"就这些。"</div></div>`;
+          h += `<p class="narrative">沉默比问题更难应对。</p>`;
+          setText(h);
+          setChoices([{ label: '……', action: () => triggerGameOver(false, '购物记录不够充分，或者你回答中有一处不合逻辑的停顿，他们找到了它。') }]);
+        }
+      }
+    },
+    {
+      label: '【愤怒】大声嚷嚷，粗鲁地推开他们走',
+      danger: true,
+      action: () => {
+        if (chance(0.22)) {
+          G.suspicion = Math.max(10, G.suspicion - 42);
+          let h = `<p class="narrative">你吼叫，挥手，推了离你最近的人一把。他们僵了一下。</p>`;
+          h += `<p class="narrative">也许是因为这种行为太过无序，太难被模式化。他们散开了。</p>`;
+          h += `<p class="narrative system">高风险策略，不过本次奏效。</p>`;
+          updateStatus();
+          setText(h);
+          setChoices([{ label: '趁乱快步离开', action: handleParkingEvents }]);
+        } else {
+          let h = `<p class="narrative">你吼叫。他们没有后退。他们只是继续看着你，平静地，没有任何反应，就好像他们在等你说完。</p>`;
+          h += `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"你说完了吗？"</div></div>`;
+          setText(h);
+          setChoices([{ label: '……', action: () => triggerGameOver(false, '愤怒并不是万能的。有些东西不会被普通的人类反应所影响。') }]);
+        }
+      }
+    },
+    {
+      label: '【狡辩】编一个关于"身体不舒服"的理由',
+      action: () => {
+        if (chance(0.45)) {
+          G.suspicion = Math.max(30, G.suspicion - 28);
+          let h = `<p class="narrative">你的声音听起来比你预想的更苍白，手也在抖——这不是表演，你真的很紧张，而恰恰是这种真实让他们停了下来。</p>`;
+          h += `<p class="narrative system">有时候，恐惧本身就是最好的掩护。</p>`;
+          updateStatus();
+          setText(h);
+          setChoices([{ label: '撑着走向出口', action: handleParkingEvents }]);
+        } else {
+          let h = `<div class="dialogue mimic"><div class="spk">???</div><div class="line">"你说头疼。"沉默，"你买了什么止痛药？"</div></div>`;
+          h += `<p class="narrative">你没有买过任何止痛药。你的购物记录里没有这个。</p>`;
+          setText(h);
+          setChoices([{ label: '……', action: () => triggerGameOver(false, '谎言需要细节支撑。你没有足够的细节。') }]);
+        }
+      }
+    }
+  ]);
+}
+
+function handleParkingEvents() {
+  const danger = G.suspicion / 100;
+  const roll = Math.random();
+  if (roll < danger && G.suspicion >= 30) {
+    handleFlatTire();
+  } else {
+    G.goodDays++;
+    setScene('parking_ok');
+    let html = `<p class="scene-header">Parking Lot · Clear</p>`;
+    html += `<p class="narrative green">你的车完好无损。停车场里有几辆车，有人正在开车离开。没有脚步声，没有人跟着你。</p>`;
+    html += `<p class="narrative italic">你发动车子，驶出停车场。路灯从头顶掠过。手机叮咚一声——今日薪资已到账。</p>`;
+    setText(html);
+    setChoices([{ label: '回家', action: nextDay }]);
+  }
+}
+
+// ════════════════════════════════════════════
+//  DAY CYCLE
+// ════════════════════════════════════════════
+function nextDay() {
+  if (G.day >= 7) { checkEndCondition(true); return; }
+  G.day++;
+  G.hour = 13;
+  G.minute = 0;
+  G.isLeaving = false;
+  G.money = 1;
+  G.starbucksMoneyReceived = false;
+  G.flags = {};
+  G.suspicion = Math.max(0, G.suspicion - 20); // overnight cooldown
+
+  setScene('nextday');
+  let html = `<p class="scene-header">${DAYS_EN[G.day]} · 13:00 · New Day</p>`;
+  html += `<p class="narrative">下午一点，你再次驱车来到商场门口。</p>`;
+  html += `<p class="narrative notice">昨天的零钱已清零。钱包里只剩一张皱巴巴的 $1 钞票。先去 Starbucks。</p>`;
+  html += `<p class="narrative system">累计薪资：${fmtMoney(G.earned)} / 目标：$10,000 · 还差 ${fmtMoney(Math.max(0, 10000 - G.earned))}</p>`;
+  updateStatus();
+  setText(html);
+  setChoices([{ label: '再次跨入商场', action: sceneEntrance }]);
+}
+
+// ════════════════════════════════════════════
+//  GAME OVER
+// ════════════════════════════════════════════
+function triggerGameOver(isWin, message) {
+  G.gameOver = true;
+  const screen = document.getElementById('gameover-screen');
+  const title = document.getElementById('gameover-title');
+  const text = document.getElementById('gameover-text');
+  const sub = document.getElementById('gameover-sub');
+  const stats = document.getElementById('gameover-stats');
+
+  if (isWin) {
+    screen.classList.add('win');
+    title.textContent = '[ 债务清空 ]';
+    text.innerHTML = `你活过了这七天，攒够了 ${fmtMoney(G.earned)}。<br>钱已经转出去了。没有回执，没有感谢，没有解释。<br><br>你不知道那家商场里到底有多少像你一样的人。<br>你也不知道那些不像你的人，最终去了哪里。`;
+    sub.textContent = '你的欠款已经还清了。';
+  } else {
+    screen.classList.remove('win');
+    title.textContent = '[ 工作终止 ]';
+    text.innerHTML = message;
+    sub.textContent = '';
+  }
+
+  stats.innerHTML = `薪资 ${fmtMoney(G.earned)} / 目标 $10,000<br>` +
+    `工作 ${G.day} 天  ·  干净离场 ${G.goodDays} 天<br>` +
+    `遭遇伪人 ${G.mimicEncounters} 次  ·  停车场损失 ${fmtMoney(G.penaltyMoney)}`;
+
+  screen.style.display = 'flex';
+}
+
+function restartGame() {
+  document.getElementById('gameover-screen').style.display = 'none';
+  document.getElementById('gameover-screen').classList.remove('win');
+  startGame();
+}
+
+// ════════════════════════════════════════════
+//  START
+// ════════════════════════════════════════════
+function startGame() {
+  document.getElementById('intro-screen').style.display = 'none';
+  initState();
+  updateStatus();
+  sceneEntrance();
+  setInterval(() => { if (!G.gameOver) checkEndCondition(); }, 500);
+}
+
+function toggleRules() {
+  const p = document.getElementById('rules-panel');
+  p.style.display = p.style.display === 'block' ? 'none' : 'block';
+}
+</script>
+</body>
+</html>
